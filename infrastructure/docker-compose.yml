@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg14
+    container_name: sentinel-db
+    environment:
+      POSTGRES_DB: sentinel
+      POSTGRES_USER: sentinel_user
+      POSTGRES_PASSWORD: sentinel_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel_user -d sentinel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sentinel-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: sentinel-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_SMTP_ENABLED: "true"
+      GF_SMTP_HOST: "smtp.gmail.com:587"  # For Gmail (or your SMTP server)
+      GF_SMTP_USER: "deepanshusemwal99@gmail.com"  # Your email
+      GF_SMTP_PASSWORD: "thsjhwirpjdiuucw"  # Your app password (not regular password)
+      GF_SMTP_FROM_ADDRESS: "your-email@gmail.com"
+      GF_SMTP_FROM_NAME: "Grafana Alerts"
+      GF_SMTP_SKIP_VERIFY: "false" #  GF_INSTALL_PLUGINS: timescaledb
+    volumes:
+      - grafana_data:/var/lib/grafna
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - sentinel-network
+
+volumes:
+  postgres_data:
+  grafana_data:
+
+networks:
+  sentinel-network:
+    driver: bridge

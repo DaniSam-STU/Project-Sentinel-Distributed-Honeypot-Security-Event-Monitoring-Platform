@@ -1,0 +1,42 @@
+-- Enable TimescaleDB extension
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+
+-- Create events table structure
+CREATE TABLE IF NOT EXISTS events (
+    event_id UUID PRIMARY KEY,
+    timestamp TIMESTAMPTZ NOT NULL,
+    sensor_id VARCHAR(50) NOT NULL,
+    sensor_type VARCHAR(20) NOT NULL,
+    source_ip INET NOT NULL,
+    source_port INTEGER,
+    destination_ip INET,
+    destination_port INTEGER,
+    protocol VARCHAR(10),
+    event_type VARCHAR(20) NOT NULL,
+    data JSONB,
+    severity VARCHAR(20),
+    tags TEXT[],
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Convert to hypertable for time-series optimization
+SELECT create_hypertable('events', 'timestamp', if_not_exists => TRUE);
+
+-- Create indexes for performance
+CREATE INDEX IF NOT EXISTS idx_events_sensor_id ON events (sensor_id);
+CREATE INDEX IF NOT EXISTS idx_events_source_ip ON events (source_ip);
+CREATE INDEX IF NOT EXISTS idx_events_event_type ON events (event_type);
+CREATE INDEX IF NOT EXISTS idx_events_severity ON events (severity);
+
+-- Create user for the API
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_user WHERE usename = 'sentinel_api') THEN
+        CREATE USER sentinel_api WITH PASSWORD 'api_password';
+    END IF;
+END
+$$;
+
+GRANT CONNECT ON DATABASE sentinel TO sentinel_api;
+GRANT USAGE ON SCHEMA public TO sentinel_api;
+GRANT SELECT, INSERT, UPDATE ON events TO sentinel_api;
