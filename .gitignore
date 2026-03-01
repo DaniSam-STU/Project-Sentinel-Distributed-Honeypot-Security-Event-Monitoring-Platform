@@ -1,0 +1,11 @@
+# Docker volumes
+*/data/
+*_data/
+*.log
+
+# Grafana backups (optional - can keep if you want)
+# grafana-backups/*.json
+
+# Environment files
+.env
+*.env
