@@ -1,41 +1,79 @@
-# 🛡️ Project Sentinel
-**A Distributed Multi-Vector Honeypot Network**
+# Project Sentinel - Core API
 
-Welcome to Project Sentinel. This is a decentralized security research tool designed to deceive, detect, and analyze cyber-attacks in real-time. By deploying lightweight, multi-vector sensors globally, Sentinel captures high-fidelity threat intelligence and automates attacker attribution.
+**Member A's Deliverable** | Deadline: Day 14
 
----
+## JSON Schema (Post this on Day 1!)
 
-## 🏗️ System Architecture & Roles
-
-Sentinel is built on a strict, decoupled 3-tier architecture. Each tier is owned by a specific role:
-
-1. **The Brain (Core Systems Architect):** The central ingestion API and database (`/core-api`). Responsible for securely receiving, validating, and storing attack data.
-2. **The Skin (Security & Deception Engineer):** The honeypot modules (`/sensors`). Emulated services (SSH, HTTP, etc.) that trick attackers and capture payloads.
-3. **The Nerves (Distributed Ops - DevOps/SRE):** The deployment and routing logic (`/infrastructure`). Responsible for containerization, secure WireGuard tunnels, and global fleet management.
-
----
-
-## 📜 The Master Data Contract (JSON Schema)
-
-**CRITICAL:** This is the most important part of the project. 
-* All **Sensors** MUST output data in this exact format.
-* The **API and Database** MUST be built to ingest this exact format. 
-
-If this contract is followed, all independent components will sync flawlessly.
+Member B and C must send logs in this exact format:
 
 ```json
 {
-  "event_id": "uuid-v4-string",
-  "timestamp": "ISO-8601-UTC",
-  "sensor_id": "string (assigned by DevOps)",
-  "sensor_location": "string (e.g., 'fra1', 'nyc3')",
-  "source_ip": "string (IPv4/IPv6)",
-  "vector": "string (e.g., 'ssh', 'http', 'smb')",
-  "interaction_level": "string ('low', 'medium', 'high')",
-  "payload": {
-    "username_attempted": "string (optional)",
-    "password_attempted": "string (optional)",
-    "commands_executed": ["array of strings (optional)"],
-    "files_dropped": ["array of file hashes (optional)"]
-  }
+  "sensor_id":     "sensor-us-east-01",
+  "sensor_ip":     "192.168.1.10",
+  "protocol":      "SSH",
+  "attacker_ip":   "45.33.32.156",
+  "attacker_port": 54321,
+  "timestamp":     "2024-01-15T10:30:00Z",
+  "payload":       "raw bytes or string captured",
+  "username":      "root",
+  "password":      "admin123",
+  "command":       "whoami",
+  "user_agent":    null
 }
+```
+
+> `protocol` must be one of: `SSH`, `HTTP`, `SMB`, `Telnet`
+
+---
+
+## API Endpoints
+
+| Method | Endpoint   | Description                        |
+|--------|------------|------------------------------------|
+| POST   | `/ingest`  | Sensors send attack logs here      |
+| GET    | `/health`  | Check which sensors are online     |
+| GET    | `/logs`    | View recent logs (optional filter) |
+
+### GET /logs (optional filter)
+```
+GET /logs?protocol=SSH
+```
+
+---
+
+## Folder Structure
+
+```
+/core-api/
+  main.go
+  go.mod
+  handlers/
+    handlers.go
+  database/
+    db.go
+
+/database-schema/
+  schema.sql
+```
+
+---
+
+## How to Run
+
+```bash
+# Set environment variables
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USER=sentinel
+export DB_PASS=sentinel_pass
+export DB_NAME=sentinel_db
+
+# Run
+cd core-api
+go run main.go
+```
+
+## Dependencies
+- Go 1.21+
+- PostgreSQL / TimescaleDB
+- gin-gonic, sqlx, lib/pq
