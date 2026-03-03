@@ -19,7 +19,7 @@ func getDatabaseURL() string {
 	if url := os.Getenv("DATABASE_URL"); url != "" {
 		return url
 	}
-	return "postgresql://postgres:postgres@localhost:5432/sentinel"
+	return "postgresql://sentinel_user:sentinel_password@localhost:5432/sentinel"
 }
 
 // --- Models (Master JSON Contract) ---
