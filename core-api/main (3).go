@@ -1,92 +1,157 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
-from typing import Optional, List, Any
-from datetime import datetime
-import asyncpg
-import uuid
-import os
+package main
 
-app = FastAPI(title="Project Sentinel - Ingestion API")
+import (
+	"context"
+	"encoding/json"
+	"log"
+	"net/http"
+	"os"
+	"time"
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/sentinel"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-# --- Connection Pool ---
+// --- Config ---
 
-@app.on_event("startup")
-async def startup():
-    app.state.pool = await asyncpg.create_pool(DATABASE_URL)
+func getDatabaseURL() string {
+	if url := os.Getenv("DATABASE_URL"); url != "" {
+		return url
+	}
+	return "postgresql://postgres:postgres@localhost:5432/sentinel"
+}
 
-@app.on_event("shutdown")
-async def shutdown():
-    await app.state.pool.close()
+// --- Models (Master JSON Contract) ---
 
-# --- Pydantic Models (Master JSON Contract) ---
+type Payload struct {
+	UsernameAttempted *string `json:"username_attempted"`
+	PasswordAttempted *string `json:"password_attempted"`
+	CommandsExecuted  []any   `json:"commands_executed"`
+	FilesDropped      []any   `json:"files_dropped"`
+}
 
-class Payload(BaseModel):
-    username_attempted: Optional[str] = None
-    password_attempted: Optional[str] = None
-    commands_executed: Optional[List[Any]] = None
-    files_dropped: Optional[List[Any]] = None
+type SecurityEvent struct {
+	EventID           uuid.UUID `json:"event_id"         binding:"required"`
+	Timestamp         time.Time `json:"timestamp"        binding:"required"`
+	SensorID          string    `json:"sensor_id"        binding:"required,max=50"`
+	SensorLocation    *string   `json:"sensor_location"`
+	SourceIP          string    `json:"source_ip"        binding:"required,max=45"`
+	Vector            string    `json:"vector"           binding:"required,max=20"`
+	InteractionLevel  *string   `json:"interaction_level"`
+	Payload           *Payload  `json:"payload"`
+}
 
-class SecurityEvent(BaseModel):
-    event_id: uuid.UUID
-    timestamp: datetime
-    sensor_id: str = Field(..., max_length=50)
-    sensor_location: Optional[str] = Field(None, max_length=50)
-    source_ip: str = Field(..., max_length=45)
-    vector: str = Field(..., max_length=20)
-    interaction_level: Optional[str] = Field(None, max_length=10)
-    payload: Optional[Payload] = None
+// --- App ---
 
-# --- Ingest Endpoint ---
+type App struct {
+	db *pgxpool.Pool
+}
 
-@app.post("/api/v1/ingest")
-async def ingest_event(event: SecurityEvent):
-    payload = event.payload or Payload()
+func main() {
+	ctx := context.Background()
 
-    sql = """
-        INSERT INTO security_events (
-            event_id, timestamp, sensor_id, sensor_location,
-            source_ip, vector, interaction_level,
-            username_attempted, password_attempted,
-            commands_executed, files_dropped
-        ) VALUES (
-            $1, $2, $3, $4,
-            $5, $6, $7,
-            $8, $9,
-            $10::jsonb, $11::jsonb
-        )
-        ON CONFLICT (event_id) DO NOTHING
-    """
+	pool, err := pgxpool.New(ctx, getDatabaseURL())
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer pool.Close()
 
-    import json
+	if err := pool.Ping(ctx); err != nil {
+		log.Fatalf("Database ping failed: %v", err)
+	}
+	log.Println("Connected to database.")
 
-    try:
-        async with app.state.pool.acquire() as conn:
-            await conn.execute(
-                sql,
-                event.event_id,
-                event.timestamp,
-                event.sensor_id,
-                event.sensor_location,
-                event.source_ip,
-                event.vector,
-                event.interaction_level,
-                payload.username_attempted,
-                payload.password_attempted,
-                json.dumps(payload.commands_executed) if payload.commands_executed is not None else "[]",
-                json.dumps(payload.files_dropped) if payload.files_dropped is not None else "[]",
-            )
-    except asyncpg.PostgresError as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+	app := &App{db: pool}
 
-    return {"status": "success", "event_id": str(event.event_id)}
+	r := gin.Default()
+	r.POST("/api/v1/ingest", app.ingestEvent)
+	r.GET("/health", app.health)
 
+	log.Println("Starting server on :8000")
+	if err := r.Run(":8000"); err != nil {
+		log.Fatalf("Server error: %v", err)
+	}
+}
 
-# --- Health Check ---
+// --- Handlers ---
+
+func (a *App) ingestEvent(c *gin.Context) {
+	var event SecurityEvent
+	if err := c.ShouldBindJSON(&event); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Unpack payload fields safely
+	var (
+		usernameAttempted *string
+		passwordAttempted *string
+		commandsExecuted  = []any{}
+		filesDropped      = []any{}
+	)
+	if event.Payload != nil {
+		usernameAttempted = event.Payload.UsernameAttempted
+		passwordAttempted = event.Payload.PasswordAttempted
+		if event.Payload.CommandsExecuted != nil {
+			commandsExecuted = event.Payload.CommandsExecuted
+		}
+		if event.Payload.FilesDropped != nil {
+			filesDropped = event.Payload.FilesDropped
+		}
+	}
+
+	commandsJSON, err := json.Marshal(commandsExecuted)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encode commands_executed"})
+		return
+	}
+	filesJSON, err := json.Marshal(filesDropped)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encode files_dropped"})
+		return
+	}
+
+	sql := `
+		INSERT INTO security_events (
+			event_id, timestamp, sensor_id, sensor_location,
+			source_ip, vector, interaction_level,
+			username_attempted, password_attempted,
+			commands_executed, files_dropped
+		) VALUES (
+			$1, $2, $3, $4,
+			$5, $6, $7,
+			$8, $9,
+			$10::jsonb, $11::jsonb
+		)
+		ON CONFLICT (event_id) DO NOTHING
+	`
+
+	_, err = a.db.Exec(c.Request.Context(), sql,
+		event.EventID,
+		event.Timestamp,
+		event.SensorID,
+		event.SensorLocation,
+		event.SourceIP,
+		event.Vector,
+		event.InteractionLevel,
+		usernameAttempted,
+		passwordAttempted,
+		string(commandsJSON),
+		string(filesJSON),
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "success", "event_id": event.EventID.String()})
+}
+
+func (a *App) health(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
 
 @app.get("/health")
 async def health():
