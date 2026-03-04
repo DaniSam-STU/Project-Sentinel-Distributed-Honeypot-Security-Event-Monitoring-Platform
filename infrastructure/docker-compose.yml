@@ -13,6 +13,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel_user -d sentinel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - sentinel-network
 
@@ -25,12 +30,14 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin123
     volumes:
-      - ./grafana-data:/var/lib/grafana
+      - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - sentinel-network
+    restart: unless-stopped
 
 volumes:
   postgres_data:
