@@ -1,0 +1,47 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: multiservice-attack
+    folder: General
+    interval: 10m
+    rules:
+      - uid: multiservice-attack
+        title: Attack Pattern Detection
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: postgresql
+            model:
+              rawSql: |
+                SELECT COUNT(DISTINCT source_ip) as multi_service_attackers
+                FROM events
+                WHERE 
+                  timestamp > NOW() - INTERVAL '10 minutes'
+                GROUP BY source_ip
+                HAVING COUNT(DISTINCT sensor_type) > 2
+              format: table
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              type: reduce
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: B
+              type: threshold
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+        noDataState: NoData
+        execErrState: Error
+        for: 10m
+        labels:
+          alert_type: coordinated_attack
+          team: security
