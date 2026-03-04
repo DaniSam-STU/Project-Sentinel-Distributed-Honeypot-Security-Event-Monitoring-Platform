@@ -15,9 +15,6 @@ services:
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sentinel_user -d sentinel"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
     networks:
       - sentinel-network
 
@@ -29,20 +26,17 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin123
-      GF_SMTP_ENABLED: "true"
-      GF_SMTP_HOST: "smtp.gmail.com:587"  # For Gmail (or your SMTP server)
-      GF_SMTP_USER: "deepanshusemwal99@gmail.com"  # Your email
-      GF_SMTP_PASSWORD: "thsjhwirpjdiuucw"  # Your app password (not regular password)
-      GF_SMTP_FROM_ADDRESS: "your-email@gmail.com"
-      GF_SMTP_FROM_NAME: "Grafana Alerts"
-      GF_SMTP_SKIP_VERIFY: "false" #  GF_INSTALL_PLUGINS: timescaledb
     volumes:
-      - grafana_data:/var/lib/grafna
+      # Persistent storage for UI changes
+      - grafana_data:/var/lib/grafana
+      # Provisioning directory - THIS IS KEY!
+      - ./grafana/provisioning:/etc/grafana/provisioning
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - sentinel-network
+    restart: unless-stopped
 
 volumes:
   postgres_data:
