@@ -1,9 +1,9 @@
-﻿apiVersion: 1
+apiVersion: 1
 
 groups:
   - orgId: 1
     name: bruteforce-checks
-    folder: General  # This is the key fix!
+    folder: General
     interval: 1m
     rules:
       - uid: ssh-bruteforce
@@ -16,7 +16,16 @@ groups:
               to: 0
             datasourceUid: postgresql
             model:
-              rawSql: "SELECT COUNT(*) as attempt_count FROM events WHERE event_type = 'authentication' AND timestamp > now() - interval '5 minutes' GROUP BY source_ip HAVING COUNT(*) > 3"
+              rawSql: |
+                SELECT 
+                  COUNT(*) as attempt_count,
+                  source_ip
+                FROM events
+                WHERE 
+                  event_type = 'authentication' 
+                  AND timestamp > now() - interval '5 minutes'
+                GROUP BY source_ip
+                HAVING COUNT(*) > 3
               format: table
           - refId: B
             datasourceUid: __expr__
@@ -38,3 +47,4 @@ groups:
         for: 1m
         labels:
           severity: critical
+          type: bruteforce
