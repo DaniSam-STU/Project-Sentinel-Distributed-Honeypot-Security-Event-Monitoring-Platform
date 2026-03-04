@@ -1,0 +1,58 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: traffic-spike
+    folder: General
+    interval: 5m
+    rules:
+      - uid: traffic-spike
+        title: Unusual Traffic Spike
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: postgresql
+            model:
+              rawSql: |
+                SELECT COUNT(*) as current_rate
+                FROM events
+                WHERE timestamp > NOW() - INTERVAL '5 minutes'
+              format: table
+          - refId: B
+            relativeTimeRange:
+              from: 3600
+              to: 300
+            datasourceUid: postgresql
+            model:
+              rawSql: |
+                SELECT AVG(count) as baseline_rate
+                FROM (
+                  SELECT COUNT(*) as count
+                  FROM events
+                  WHERE timestamp > NOW() - INTERVAL '1 hour'
+                    AND timestamp < NOW() - INTERVAL '5 minutes'
+                  GROUP BY time_bucket('5 minutes', timestamp)
+                ) as baseline
+              format: table
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: A / B
+              type: math
+          - refId: D
+            datasourceUid: __expr__
+            model:
+              expression: C
+              type: threshold
+              conditions:
+                - evaluator:
+                    params: [3]
+                    type: gt
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        labels:
+          team: operations
