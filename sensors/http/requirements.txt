@@ -1,2 +1,7 @@
+<<<<<<< HEAD
 Flask==3.0.2
 requests==2.31.0
+=======
+paramiko==3.4.0
+requests==2.31.0
+>>>>>>> ec24feb (Update SSH and HTTP honeypot sensors)
