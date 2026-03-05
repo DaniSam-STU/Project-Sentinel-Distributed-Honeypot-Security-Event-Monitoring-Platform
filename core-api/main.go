@@ -19,7 +19,8 @@ func getDatabaseURL() string {
 	if url := os.Getenv("DATABASE_URL"); url != "" {
 		return url
 	}
-	return "postgresql://sentinel_user:sentinel_password@localhost:5432/sentinel"
+	log.Fatal("DATABASE_URL environment variable not set")
+	return ""
 }
 
 // --- Models (Master JSON Contract) ---
