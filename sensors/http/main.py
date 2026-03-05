@@ -99,3 +99,9 @@ def admin_login():
 if __name__ == "__main__":
     print(f"[🌐] Sentinel HTTP Honeypot running on http://0.0.0.0:{PORT}...")
     app.run(host="0.0.0.0", port=PORT)
+    return render_template_string(LOGIN_HTML)
+
+if __name__ == "__main__":
+    print(f"[🌐] Sentinel HTTP Honeypot running on http://0.0.0.0:{PORT}...")
+    app.run(host="0.0.0.0", port=PORT)
+
