@@ -1,2 +1,6 @@
+<<<<<<< HEAD
+paramiko==3.4.0
+=======
 Flask==3.0.2
+>>>>>>> 6bb2df5d0ce194c23ef509baeefdab8e7e58a0af
 requests==2.31.0
