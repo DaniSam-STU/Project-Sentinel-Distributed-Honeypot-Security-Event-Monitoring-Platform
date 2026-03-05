@@ -11,7 +11,7 @@ log.setLevel(logging.ERROR)
 app = Flask(__name__)
 
 # --- Configuration ---
-API_URL = "http://localhost:8000/api/v1/ingest"
+API_URL = "https://sentinel-api-6ojq.onrender.com/api/v1/ingest"
 SENSOR_ID = "http-eu-1"
 SENSOR_LOCATION = "london"
 PORT = 8080
@@ -94,6 +94,11 @@ def admin_login():
         return render_template_string(LOGIN_HTML, error="Invalid username or password. Login Failed.")
 
     # Render normal login page for GET requests
+    return render_template_string(LOGIN_HTML)
+
+if __name__ == "__main__":
+    print(f"[🌐] Sentinel HTTP Honeypot running on http://0.0.0.0:{PORT}...")
+    app.run(host="0.0.0.0", port=PORT)
     return render_template_string(LOGIN_HTML)
 
 if __name__ == "__main__":

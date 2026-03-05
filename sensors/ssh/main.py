@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 
 # --- Configuration ---
-API_URL = "http://localhost:8000/api/v1/ingest"
+API_URL = "https://sentinel-api-6ojq.onrender.com/api/v1/ingest"
 SENSOR_ID = "ssh-eu-1"
 SENSOR_LOCATION = "london"
 PORT = 2222
