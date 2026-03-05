@@ -4,14 +4,14 @@ datasources:
   - name: Sentinel PostgreSQL
     type: postgres
     access: proxy
-    uid: postgresql
     url: sentinel-db:5432
-    database: sentinel
     user: sentinel_user
+    database: sentinel
     secureJsonData:
       password: sentinel_password
     jsonData:
       sslmode: disable
       postgresVersion: 1400
       timescaledb: true
+      database: sentinel
     isDefault: true
