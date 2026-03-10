@@ -3,8 +3,18 @@ import requests
 import uuid
 from datetime import datetime, timezone
 import logging
+import time
 
-# Disable default Flask startup logs to keep our terminal clean
+# Function to detect attacker country
+def get_attacker_country(ip):
+    try:
+        response = requests.get(f"http://ip-api.com/json/{ip}", timeout=5)
+        data = response.json()
+        return data.get("country", "Unknown")
+    except:
+        return "Unknown"
+
+# Disable Flask request logs
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
@@ -21,46 +31,136 @@ LOGIN_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Portal - Sentinel</title>
-    <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f4f4; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .login-box { background: #fff; padding: 20px 40px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1); text-align: center; }
-        input[type="text"], input[type="password"] { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 3px; }
-        input[type="submit"] { background: #007BFF; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 3px; width: 100%; }
-        input[type="submit"]:hover { background: #0056b3; }
-        .error { color: red; font-size: 0.9em; margin-bottom: 10px; }
-    </style>
+<meta charset="UTF-8">
+<title>Sentinel Secure Admin Portal</title>
+
+<style>
+
+body{
+    margin:0;
+    padding:0;
+    background:linear-gradient(120deg,#0f2027,#203a43,#2c5364);
+    font-family:Arial, Helvetica, sans-serif;
+    height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+}
+
+.login-container{
+    background:white;
+    width:360px;
+    padding:40px;
+    border-radius:8px;
+    box-shadow:0 15px 40px rgba(0,0,0,0.4);
+}
+
+.logo{
+    text-align:center;
+    font-size:22px;
+    font-weight:bold;
+    margin-bottom:25px;
+    color:#333;
+}
+
+input{
+    width:100%;
+    padding:12px;
+    margin:10px 0;
+    border:1px solid #ccc;
+    border-radius:4px;
+    font-size:14px;
+}
+
+input:focus{
+    outline:none;
+    border-color:#007BFF;
+}
+
+button{
+    width:100%;
+    padding:12px;
+    background:#007BFF;
+    border:none;
+    color:white;
+    font-size:16px;
+    border-radius:4px;
+    cursor:pointer;
+}
+
+button:hover{
+    background:#0056b3;
+}
+
+.error{
+    color:red;
+    font-size:13px;
+    margin-bottom:10px;
+}
+
+.footer{
+    text-align:center;
+    margin-top:20px;
+    font-size:12px;
+    color:#888;
+}
+
+</style>
 </head>
+
 <body>
-    <div class="login-box">
-        <h2>System Administration</h2>
-        {% if error %}
-            <div class="error">{{ error }}</div>
-        {% endif %}
-        <form method="POST">
-            <input type="text" name="username" placeholder="Username" required>
-            <input type="password" name="password" placeholder="Password" required>
-            <input type="submit" value="Secure Login">
-        </form>
-    </div>
+
+<div class="login-container">
+
+<div class="logo">
+🔐 Sentinel Secure Admin
+</div>
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+<form method="POST">
+
+<input type="text" name="username" placeholder="Administrator ID" required>
+
+<input type="password" name="password" placeholder="Password" required>
+
+<button type="submit">Sign In</button>
+
+</form>
+
+<div class="footer">
+Authorized personnel only
+</div>
+
+</div>
+
 </body>
 </html>
 """
 
 @app.route('/', methods=['GET', 'POST'])
 def admin_login():
+
     if request.method == 'POST':
-        # 1. Capture Attacker Data
+
+        # Capture attacker input
         username = request.form.get('username', '')
         password = request.form.get('password', '')
         source_ip = request.remote_addr
 
-        print(f"\n[!] ALERT: HTTP POST Login Attempt from {source_ip}")
-        print(f"    User: {username} | Pass: {password}")
+        # Detect attacker country
+        if source_ip == "127.0.0.1":
+            attacker_country = "Localhost"
+        else:
+            attacker_country = get_attacker_country(source_ip)
 
-        # 2. Construct Master JSON Contract
+        print(f"\n[!] HTTP Login Attempt from {source_ip}")
+        print(f"User: {username} | Pass: {password}")
+        print(f"Country: {attacker_country}")
+
+        # Create event payload
         event_id = str(uuid.uuid4())
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -70,7 +170,8 @@ def admin_login():
             "sensor_id": SENSOR_ID,
             "sensor_location": SENSOR_LOCATION,
             "source_ip": source_ip,
-            "vector": "http",  # Explicitly defined as requested
+            "attacker_country": attacker_country,
+            "vector": "http",
             "interaction_level": "low",
             "payload": {
                 "username_attempted": username,
@@ -80,27 +181,30 @@ def admin_login():
             }
         }
 
-        # 3. Fire to Core API
+        # Send event to Core API
         try:
-            response = requests.post(API_URL, json=payload, timeout=5)
+
+            print("[*] Waking API server...")
+
+            requests.get("https://sentinel-api-6ojq.onrender.com/health", timeout=120)
+
+            time.sleep(5)
+
+            response = requests.post(API_URL, json=payload, timeout=120)
+
             if response.status_code == 200:
                 print(f"[+] Successfully ingested HTTP event: {event_id}")
             else:
-                print(f"[-] API Error: {response.status_code} - {response.text}")
+                print(f"[-] API Error: {response.status_code}")
+
         except Exception as e:
             print(f"[-] Failed to connect to Core API: {e}")
 
-        # 4. Always deny access with a generic error
-        return render_template_string(LOGIN_HTML, error="Invalid username or password. Login Failed.")
+        return render_template_string(LOGIN_HTML, error="Invalid username or password")
 
-    # Render normal login page for GET requests
     return render_template_string(LOGIN_HTML)
 
-if __name__ == "__main__":
-    print(f"[🌐] Sentinel HTTP Honeypot running on http://0.0.0.0:{PORT}...")
-    app.run(host="0.0.0.0", port=PORT)
-    return render_template_string(LOGIN_HTML)
 
 if __name__ == "__main__":
-    print(f"[🌐] Sentinel HTTP Honeypot running on http://0.0.0.0:{PORT}...")
+    print(f"[🌐] Sentinel HTTP Honeypot running on http://localhost:{PORT}")
     app.run(host="0.0.0.0", port=PORT)
