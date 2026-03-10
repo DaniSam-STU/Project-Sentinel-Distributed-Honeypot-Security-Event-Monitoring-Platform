@@ -53,7 +53,7 @@ class SentinelSSHServer(paramiko.ServerInterface):
 
         # 2. Fire the data to the Core API
         try:
-            response = requests.post(API_URL, json=payload, timeout=5)
+            response = requests.post(API_URL, json=payload, timeout=30)
             if response.status_code == 200:
                 print(f"[+] Successfully ingested event: {event_id}")
             else:
