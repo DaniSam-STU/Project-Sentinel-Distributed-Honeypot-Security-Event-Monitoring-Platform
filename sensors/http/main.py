@@ -3,7 +3,6 @@ import requests
 import uuid
 from datetime import datetime, timezone
 import logging
-import time
 
 # -------- CONFIG --------
 API_URL = "https://sentinel-api-6ojq.onrender.com/api/v1/ingest"
@@ -11,7 +10,7 @@ HEALTH_URL = "https://sentinel-api-6ojq.onrender.com/health"
 
 SENSOR_ID = "http-eu-1"
 SENSOR_LOCATION = "london"
-PORT = 8080  
+PORT = 8080
 
 # -------- LOGGING --------
 log = logging.getLogger('werkzeug')
@@ -28,19 +27,28 @@ def get_attacker_country(ip):
         return "Unknown"
 
 # -------- HTML --------
-LOGIN_HTML = """<!DOCTYPE html>
+LOGIN_HTML = """
+<!DOCTYPE html>
 <html>
-<head><title>Sentinel Admin</title></head>
+<head>
+    <title>Sentinel Admin</title>
+</head>
 <body style="font-family:sans-serif;text-align:center;margin-top:100px;">
-<h2>🔐 Sentinel Secure Admin</h2>
+<h2> Sentinel Secure Admin</h2>
+
 <form method="POST">
 <input type="text" name="username" placeholder="Username" required><br><br>
 <input type="password" name="password" placeholder="Password" required><br><br>
 <button type="submit">Login</button>
 </form>
-{% if error %}<p style="color:red;">{{ error }}</p>{% endif %}
+
+{% if error %}
+<p style="color:red;">{{ error }}</p>
+{% endif %}
+
 </body>
-</html>"""
+</html>
+"""
 
 # -------- ROUTE --------
 @app.route("/", methods=["GET", "POST"])
@@ -52,7 +60,6 @@ def login():
         password = request.form.get("password", "")
         source_ip = request.remote_addr
 
-        # Detect country
         attacker_country = "Localhost" if source_ip == "127.0.0.1" else get_attacker_country(source_ip)
 
         print("\n[!] HTTP Login Attempt")
@@ -67,7 +74,7 @@ def login():
             "sensor_id": SENSOR_ID,
             "sensor_location": SENSOR_LOCATION,
             "source_ip": source_ip,
-            "vector": "http",   # 🔥 IMPORTANT
+            "vector": "http",
             "interaction_level": "low",
             "payload": {
                 "username_attempted": username,
@@ -77,28 +84,29 @@ def login():
             }
         }
 
-        # -------- SEND TO GO BACKEND --------
+        # -------- SEND TO API --------
         try:
             print("[*] Sending event to API...")
 
-            # Wake up Render (optional but useful)
+            # Wake up Render (optional)
             requests.get(HEALTH_URL, timeout=10)
 
             response = requests.post(API_URL, json=payload, timeout=10)
 
-            print(f"[DEBUG] Response: {response.status_code} | {response.text}")
+            print(f"[DEBUG] {response.status_code} → {response.text}")
 
             if response.status_code == 200:
-                print(f"[+] Event sent successfully")
+                print("[+] Event sent successfully")
             else:
                 print(f"[-] API Error: {response.status_code}")
 
         except Exception as e:
-            print(f"[-] Failed to connect: {e}")
+            print(f"[-] Connection error: {e}")
 
         return render_template_string(LOGIN_HTML, error="Invalid credentials")
 
     return render_template_string(LOGIN_HTML)
+
 
 # -------- MAIN --------
 if __name__ == "__main__":
