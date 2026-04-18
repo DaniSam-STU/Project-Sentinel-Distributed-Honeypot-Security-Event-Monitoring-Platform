@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	
 )
 
 // ---------------- EMAIL ----------------
@@ -83,6 +84,32 @@ type SecurityEvent struct {
 
 type App struct {
 	db *pgxpool.Pool
+}
+
+func sendTelegram(message string) {
+
+	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
+	chatID := os.Getenv("TELEGRAM_CHAT_ID")
+
+	url := "https://api.telegram.org/bot" + botToken + "/sendMessage"
+
+	payload := strings.NewReader(
+		"chat_id=" + chatID + "&text=" + message,
+	)
+
+	req, _ := http.NewRequest("POST", url, payload)
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+
+	if err != nil {
+		fmt.Println("❌ Telegram error:", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	fmt.Println("📱 Telegram alert sent")
 }
 
 func (a *App) sendEmailToAll(subject string, message string) {
@@ -275,6 +302,8 @@ if vector == "ssh" || vector == "http" {
 		message,
 	)
 }
+
+sendTelegram("🚨 ALERT: " + event.Vector + " attack from " + event.SourceIP)
 
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
 }
