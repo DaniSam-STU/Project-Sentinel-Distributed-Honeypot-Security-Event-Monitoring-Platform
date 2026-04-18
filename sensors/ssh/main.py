@@ -4,18 +4,12 @@ import paramiko
 import requests
 import uuid
 from datetime import datetime, timezone
-
-# --- Function to detect attacker country ---
-def get_attacker_country(ip):
-    try:
-        response = requests.get(f"http://ip-api.com/json/{ip}", timeout=5)
-        data = response.json()
-        return data.get("country", "Unknown")
-    except:
-        return "Unknown"
+import logging
 
 # --- Configuration ---
 API_URL = "https://sentinel-api-6ojq.onrender.com/api/v1/ingest"
+HEALTH_URL = "https://sentinel-api-6ojq.onrender.com/health"
+
 SENSOR_ID = "ssh-eu-1"
 SENSOR_LOCATION = "london"
 PORT = 2222
@@ -23,11 +17,19 @@ PORT = 2222
 # Generate RSA key for fake SSH server
 HOST_KEY = paramiko.RSAKey.generate(2048)
 
+# --- Function to detect attacker country ---
+def get_attacker_country(ip):
+    try:
+        response = requests.get(f"http://ip-api.com/json/{ip}", timeout=3)
+        return response.json().get("country", "Unknown")
+    except:
+        return "Unknown"
+
+
 class SentinelSSHServer(paramiko.ServerInterface):
 
     def __init__(self, client_ip):
         self.client_ip = client_ip
-        self.event = threading.Event()
 
     def check_channel_request(self, kind, chanid):
         if kind == 'session':
@@ -39,27 +41,24 @@ class SentinelSSHServer(paramiko.ServerInterface):
 
     def check_auth_password(self, username, password):
 
-        # Detect attacker country
-        if self.client_ip == "127.0.0.1":
-            attacker_country = "Localhost"
-        else:
-            attacker_country = get_attacker_country(self.client_ip)
+        attacker_country = (
+            "Localhost"
+            if self.client_ip == "127.0.0.1"
+            else get_attacker_country(self.client_ip)
+        )
 
-        print(f"\n[!] ALERT: Login attempt from {self.client_ip}")
+        print("\n[!] SSH Login Attempt")
+        print(f"IP: {self.client_ip}")
         print(f"Country: {attacker_country}")
         print(f"User: {username} | Pass: {password}")
 
-        # Create event payload
-        event_id = str(uuid.uuid4())
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
+        # --- Create event payload ---
         payload = {
-            "event_id": event_id,
-            "timestamp": timestamp,
+            "event_id": str(uuid.uuid4()),
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "sensor_id": SENSOR_ID,
             "sensor_location": SENSOR_LOCATION,
             "source_ip": self.client_ip,
-            "attacker_country": attacker_country,
             "vector": "ssh",
             "interaction_level": "low",
             "payload": {
@@ -70,48 +69,56 @@ class SentinelSSHServer(paramiko.ServerInterface):
             }
         }
 
-        # Send attack data to Core API
+        # --- Send to Core API ---
         try:
-            response = requests.post(API_URL, json=payload, timeout=60)
+            print("[*] Sending SSH event to API...")
+
+            # Wake up Render (optional)
+            try:
+                requests.get(HEALTH_URL, timeout=3)
+            except:
+                pass
+
+            response = requests.post(API_URL, json=payload, timeout=8)
+
+            print(f"[DEBUG] {response.status_code} → {response.text}")
 
             if response.status_code == 200:
-                print(f"[+] Successfully ingested event: {event_id}")
+                print("[+] Event sent successfully")
             else:
                 print(f"[-] API Error: {response.status_code}")
 
         except Exception as e:
-            print(f"[-] Failed to connect to Core API: {e}")
+            print(f"[-] API connection failed: {e}")
 
-        # Always deny access
         return paramiko.AUTH_FAILED
 
 
 def handle_connection(client_socket, client_addr):
 
     client_ip = client_addr[0]
-    print(f"[*] Incoming connection from {client_ip}")
+    print(f"[*] Incoming SSH connection from {client_ip}")
+
+    transport = None
 
     try:
         transport = paramiko.Transport(client_socket)
         transport.add_server_key(HOST_KEY)
 
         server = SentinelSSHServer(client_ip)
-
         transport.start_server(server=server)
 
         # Wait for authentication attempt
         while transport.is_active():
-
-            if transport.is_authenticated():
-                break
-
             threading.Event().wait(0.5)
 
     except Exception as e:
         print(f"[-] Connection error: {e}")
 
     finally:
-        transport.close()
+        if transport:
+            transport.close()
+        client_socket.close()
 
 
 def start_honeypot():
@@ -126,16 +133,14 @@ def start_honeypot():
 
     try:
         while True:
-
             client_socket, client_addr = server_socket.accept()
 
-            client_thread = threading.Thread(
+            thread = threading.Thread(
                 target=handle_connection,
                 args=(client_socket, client_addr)
             )
-
-            client_thread.daemon = True
-            client_thread.start()
+            thread.daemon = True
+            thread.start()
 
     except KeyboardInterrupt:
         print("\n[!] Shutting down honeypot.")
@@ -145,8 +150,5 @@ def start_honeypot():
 
 
 if __name__ == "__main__":
-
-    import logging
     logging.getLogger("paramiko").setLevel(logging.CRITICAL)
-
     start_honeypot()

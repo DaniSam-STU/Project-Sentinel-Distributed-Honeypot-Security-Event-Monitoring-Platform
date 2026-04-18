@@ -4,17 +4,27 @@ import uuid
 from datetime import datetime, timezone
 import logging
 
-# Disable Flask logs
+# -------- CONFIG --------
+API_URL = "https://sentinel-api-6ojq.onrender.com/api/v1/ingest"
+HEALTH_URL = "https://sentinel-api-6ojq.onrender.com/health"
+
+SENSOR_ID = "http-eu-1"
+SENSOR_LOCATION = "london"
+PORT = 8080
+
+# -------- LOGGING --------
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
 app = Flask(__name__)
 
-# -------- CONFIG --------
-API_URL = "https://sentinel-api-6ojq.onrender.com/api/v1/ingest"
-SENSOR_ID = "http-eu-1"
-SENSOR_LOCATION = "london"
-PORT = 8080
+# -------- COUNTRY DETECTION --------
+def get_attacker_country(ip):
+    try:
+        response = requests.get(f"http://ip-api.com/json/{ip}", timeout=3)
+        return response.json().get("country", "Unknown")
+    except:
+        return "Unknown"
 
 # -------- HTML --------
 LOGIN_HTML = """
@@ -22,66 +32,45 @@ LOGIN_HTML = """
 <html>
 <head>
     <title>Sentinel Admin</title>
-    <style>
-        body {
-            font-family: Arial;
-            background: #f4f4f4;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        .box {
-            background: white;
-            padding: 30px;
-            border-radius: 5px;
-            text-align: center;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        input {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-        }
-        button {
-            padding: 10px;
-            width: 100%;
-            background: #007BFF;
-            color: white;
-            border: none;
-        }
-        .error { color: red; }
-    </style>
 </head>
-<body>
-<div class="box">
-    <h2>🔐 Sentinel Admin</h2>
-    {% if error %}
-        <p class="error">{{ error }}</p>
-    {% endif %}
-    <form method="POST">
-        <input type="text" name="username" placeholder="Username" required>
-        <input type="password" name="password" placeholder="Password" required>
-        <button type="submit">Login</button>
-    </form>
-</div>
+<body style="font-family:sans-serif;text-align:center;margin-top:100px;">
+<h2>🔐 Sentinel Secure Admin</h2>
+
+<form method="POST">
+<input type="text" name="username" placeholder="Username" required><br><br>
+<input type="password" name="password" placeholder="Password" required><br><br>
+<button type="submit">Login</button>
+</form>
+
+{% if error %}
+<p style="color:red;">{{ error }}</p>
+{% endif %}
+
 </body>
 </html>
 """
 
 # -------- ROUTE --------
-@app.route('/', methods=['GET', 'POST'])
-def admin_login():
+@app.route("/", methods=["GET", "POST"])
+def login():
 
-    if request.method == 'POST':
-        username = request.form.get('username', '')
-        password = request.form.get('password', '')
+    if request.method == "POST":
+
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
         source_ip = request.remote_addr
 
-        print(f"\n[!] HTTP Login Attempt from {source_ip}")
-        print(f"User: {username} | Pass: {password}")
+        attacker_country = (
+            "Localhost" if source_ip == "127.0.0.1"
+            else get_attacker_country(source_ip)
+        )
 
-        # Build payload
+        print("\n[!] HTTP Login Attempt")
+        print(f"IP: {source_ip}")
+        print(f"User: {username} | Pass: {password}")
+        print(f"Country: {attacker_country}")
+
+        # -------- BUILD EVENT --------
         payload = {
             "event_id": str(uuid.uuid4()),
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -98,18 +87,24 @@ def admin_login():
             }
         }
 
-        # Send to API
+        # -------- SEND TO API --------
         try:
             print("[*] Sending event to API...")
 
-            response = requests.post(API_URL, json=payload, timeout=5)
+            # Wake up Render (safe)
+            try:
+                requests.get(HEALTH_URL, timeout=3)
+            except:
+                pass
+
+            response = requests.post(API_URL, json=payload, timeout=8)
 
             print(f"[DEBUG] {response.status_code} → {response.text}")
 
             if response.status_code == 200:
-                print(f"[+] Event sent successfully")
+                print("[+] Event sent successfully")
             else:
-                print(f"[-] API Error")
+                print(f"[-] API Error: {response.status_code}")
 
         except Exception as e:
             print(f"[-] Connection error: {e}")
