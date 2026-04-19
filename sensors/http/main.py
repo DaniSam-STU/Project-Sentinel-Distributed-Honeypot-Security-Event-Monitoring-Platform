@@ -4,8 +4,9 @@ import uuid
 from datetime import datetime, timezone
 import logging
 import time
+from collections import defaultdict
 
-# Function to detect attacker country
+# --- Function to detect attacker country ---
 def get_attacker_country(ip):
     try:
         response = requests.get(f"http://ip-api.com/json/{ip}", timeout=5)
@@ -26,113 +27,92 @@ SENSOR_ID = "http-eu-1"
 SENSOR_LOCATION = "london"
 PORT = 8080
 
+# --- Temporary IP blocking config ---
+MAX_ATTEMPTS = 5
+WINDOW_SECONDS = 120   # increased window
+BLOCK_SECONDS = 120   # 2 minutes
+
+ip_attempts = defaultdict(list)
+blocked_ips = {}
+
+def is_ip_blocked(ip):
+    now = time.time()
+
+    if ip in blocked_ips:
+        unblock_at = blocked_ips[ip]
+        if now < unblock_at:
+            return True, int(unblock_at - now)
+        else:
+            del blocked_ips[ip]
+
+    return False, 0
+
+def register_attack_attempt(ip):
+    now = time.time()
+
+    ip_attempts[ip] = [t for t in ip_attempts[ip] if now - t <= WINDOW_SECONDS]
+    ip_attempts[ip].append(now)
+
+    print(f"[DEBUG] {ip} attempts: {len(ip_attempts[ip])}")
+
+    if len(ip_attempts[ip]) >= MAX_ATTEMPTS:
+        blocked_ips[ip] = now + BLOCK_SECONDS
+        ip_attempts[ip] = []
+        return True
+
+    return False
+
 # --- Fake Login Page HTML ---
 LOGIN_HTML = """
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Sentinel Secure Admin Portal</title>
-
+<title>Sentinel Secure Admin</title>
 <style>
-
-body{
-    margin:0;
-    padding:0;
-    background:linear-gradient(120deg,#0f2027,#203a43,#2c5364);
-    font-family:Arial, Helvetica, sans-serif;
-    height:100vh;
+body {
+    background: linear-gradient(120deg,#0f2027,#203a43,#2c5364);
+    font-family: Arial;
     display:flex;
-    align-items:center;
     justify-content:center;
+    align-items:center;
+    height:100vh;
 }
-
-.login-container{
+.box {
     background:white;
-    width:360px;
     padding:40px;
     border-radius:8px;
-    box-shadow:0 15px 40px rgba(0,0,0,0.4);
+    width:350px;
 }
-
-.logo{
-    text-align:center;
-    font-size:22px;
-    font-weight:bold;
-    margin-bottom:25px;
-    color:#333;
-}
-
-input{
-    width:100%;
-    padding:12px;
-    margin:10px 0;
-    border:1px solid #ccc;
-    border-radius:4px;
-    font-size:14px;
-}
-
-input:focus{
-    outline:none;
-    border-color:#007BFF;
-}
-
-button{
-    width:100%;
-    padding:12px;
-    background:#007BFF;
-    border:none;
-    color:white;
-    font-size:16px;
-    border-radius:4px;
-    cursor:pointer;
-}
-
-button:hover{
-    background:#0056b3;
-}
-
-.error{
+.error {
     color:red;
-    font-size:13px;
     margin-bottom:10px;
 }
-
-.footer{
-    text-align:center;
-    margin-top:20px;
-    font-size:12px;
-    color:#888;
+input, button {
+    width:100%;
+    padding:10px;
+    margin:10px 0;
 }
-
+button {
+    background:#007BFF;
+    color:white;
+    border:none;
+}
 </style>
 </head>
-
 <body>
 
-<div class="login-container">
-
-<div class="logo">
-🔐 Sentinel Secure Admin
-</div>
+<div class="box">
+<h2>🔐 Sentinel Secure Admin</h2>
 
 {% if error %}
 <div class="error">{{ error }}</div>
 {% endif %}
 
 <form method="POST">
-
-<input type="text" name="username" placeholder="Administrator ID" required>
-
-<input type="password" name="password" placeholder="Password" required>
-
-<button type="submit">Sign In</button>
-
+<input name="username" placeholder="Administrator ID" required>
+<input name="password" type="password" placeholder="Password" required>
+<button>Sign In</button>
 </form>
-
-<div class="footer">
-Authorized personnel only
-</div>
 
 </div>
 
@@ -142,15 +122,23 @@ Authorized personnel only
 
 @app.route('/', methods=['GET', 'POST'])
 def admin_login():
+    source_ip = request.remote_addr
+
+    # Check if IP is blocked
+    blocked, remaining = is_ip_blocked(source_ip)
+    if blocked:
+        print(f"[BLOCKED] HTTP request denied for {source_ip}, remaining {remaining}s")
+        return render_template_string(
+            LOGIN_HTML,
+            error=f"Too many attempts. IP blocked for {remaining} seconds."
+        ), 403
 
     if request.method == 'POST':
 
-        # Capture attacker input
         username = request.form.get('username', '')
         password = request.form.get('password', '')
-        source_ip = request.remote_addr
 
-        # Detect attacker country
+        # Detect country
         if source_ip == "127.0.0.1":
             attacker_country = "Localhost"
         else:
@@ -160,9 +148,14 @@ def admin_login():
         print(f"User: {username} | Pass: {password}")
         print(f"Country: {attacker_country}")
 
-        # Create event payload
+        # Register attempt
+        just_blocked = register_attack_attempt(source_ip)
+
+        # Create payload
         event_id = str(uuid.uuid4())
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        interaction_level = "high" if just_blocked else "low"
 
         payload = {
             "event_id": event_id,
@@ -172,7 +165,7 @@ def admin_login():
             "source_ip": source_ip,
             "attacker_country": attacker_country,
             "vector": "http",
-            "interaction_level": "low",
+            "interaction_level": interaction_level,
             "payload": {
                 "username_attempted": username,
                 "password_attempted": password,
@@ -181,16 +174,11 @@ def admin_login():
             }
         }
 
-        # Send event to Core API
+        # Send to API
         try:
+            print("[*] Sending data to API...")
 
-            print("[*] Waking API server...")
-
-            requests.get("https://sentinel-api-6ojq.onrender.com/health", timeout=120)
-
-            time.sleep(5)
-
-            response = requests.post(API_URL, json=payload, timeout=120)
+            response = requests.post(API_URL, json=payload, timeout=20)
 
             if response.status_code == 200:
                 print(f"[+] Successfully ingested HTTP event: {event_id}")
@@ -199,6 +187,14 @@ def admin_login():
 
         except Exception as e:
             print(f"[-] Failed to connect to Core API: {e}")
+
+        # If blocked now
+        if just_blocked:
+            print(f"[BLOCKED] HTTP IP {source_ip} blocked for 2 minutes")
+            return render_template_string(
+                LOGIN_HTML,
+                error="Too many attempts. Your IP has been blocked for 2 minutes."
+            ), 403
 
         return render_template_string(LOGIN_HTML, error="Invalid username or password")
 
