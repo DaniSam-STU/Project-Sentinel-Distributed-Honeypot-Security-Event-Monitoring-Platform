@@ -4,20 +4,31 @@ import paramiko
 import requests
 import uuid
 from datetime import datetime, timezone
+<<<<<<< HEAD
 import time
 from collections import defaultdict
+=======
+import logging
+>>>>>>> 6fc6380b3426a3e66699b182cd85d2de1febac6c
 
 # --- Function to detect attacker country ---
 def get_attacker_country(ip):
     try:
+<<<<<<< HEAD
         response = requests.get(f"http://ip-api.com/json/{ip}", timeout=5)
         data = response.json()
         return data.get("country", "Unknown")
+=======
+        response = requests.get(f"http://ip-api.com/json/{ip}", timeout=3)
+        return response.json().get("country", "Unknown")
+>>>>>>> 6fc6380b3426a3e66699b182cd85d2de1febac6c
     except:
         return "Unknown"
 
 # --- Configuration ---
 API_URL = "https://sentinel-api-6ojq.onrender.com/api/v1/ingest"
+HEALTH_URL = "https://sentinel-api-6ojq.onrender.com/health"
+
 SENSOR_ID = "ssh-eu-1"
 SENSOR_LOCATION = "london"
 PORT = 2222
@@ -77,6 +88,7 @@ class SentinelSSHServer(paramiko.ServerInterface):
 
     def check_auth_password(self, username, password):
 
+<<<<<<< HEAD
         # Check if already blocked
         blocked, remaining = is_ip_blocked(self.client_ip)
         if blocked:
@@ -102,9 +114,19 @@ class SentinelSSHServer(paramiko.ServerInterface):
 
         interaction_level = "high" if just_blocked else "low"
 
+=======
+        attacker_country = "Localhost" if self.client_ip == "127.0.0.1" else get_attacker_country(self.client_ip)
+
+        print(f"\n[!] SSH Login Attempt")
+        print(f"IP: {self.client_ip}")
+        print(f"Country: {attacker_country}")
+        print(f"User: {username} | Pass: {password}")
+
+        # --- Create event payload ---
+>>>>>>> 6fc6380b3426a3e66699b182cd85d2de1febac6c
         payload = {
-            "event_id": event_id,
-            "timestamp": timestamp,
+            "event_id": str(uuid.uuid4()),
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "sensor_id": SENSOR_ID,
             "sensor_location": SENSOR_LOCATION,
             "source_ip": self.client_ip,
@@ -119,26 +141,50 @@ class SentinelSSHServer(paramiko.ServerInterface):
             }
         }
 
+<<<<<<< HEAD
         try:
             response = requests.post(API_URL, json=payload, timeout=20)
 
             if response.status_code == 200:
                 print(f"[+] Successfully ingested event: {event_id}")
+=======
+        # --- Send to Core API ---
+        try:
+            print("[*] Sending SSH event to API...")
+
+            # Wake up Render (optional)
+            requests.get(HEALTH_URL, timeout=5)
+
+            response = requests.post(API_URL, json=payload, timeout=10)
+
+            print(f"[DEBUG] {response.status_code} → {response.text}")
+
+            if response.status_code == 200:
+                print("[+] Event sent successfully")
+>>>>>>> 6fc6380b3426a3e66699b182cd85d2de1febac6c
             else:
                 print(f"[-] API Error: {response.status_code}")
 
         except Exception as e:
+<<<<<<< HEAD
             print(f"[-] Failed to connect to Core API: {e}")
 
         if just_blocked:
             print(f"[BLOCKED] SSH IP {self.client_ip} blocked for 2 minutes")
 
+=======
+            print(f"[-] API connection failed: {e}")
+
+>>>>>>> 6fc6380b3426a3e66699b182cd85d2de1febac6c
         return paramiko.AUTH_FAILED
 
 
 def handle_connection(client_socket, client_addr):
+
     client_ip = client_addr[0]
-    print(f"[*] Incoming connection from {client_ip}")
+    print(f"[*] Incoming SSH connection from {client_ip}")
+
+    transport = None
 
     blocked, remaining = is_ip_blocked(client_ip)
     if blocked:
@@ -150,6 +196,11 @@ def handle_connection(client_socket, client_addr):
     try:
         transport = paramiko.Transport(client_socket)
         transport.add_server_key(HOST_KEY)
+<<<<<<< HEAD
+=======
+
+        server = SentinelSSHServer(client_ip)
+>>>>>>> 6fc6380b3426a3e66699b182cd85d2de1febac6c
 
         server = SentinelSSHServer(client_ip)
         transport.start_server(server=server)
@@ -163,11 +214,16 @@ def handle_connection(client_socket, client_addr):
         print(f"[-] Connection error: {e}")
 
     finally:
+<<<<<<< HEAD
         if transport is not None:
+=======
+        if transport:
+>>>>>>> 6fc6380b3426a3e66699b182cd85d2de1febac6c
             transport.close()
 
 
 def start_honeypot():
+
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
@@ -184,6 +240,10 @@ def start_honeypot():
                 target=handle_connection,
                 args=(client_socket, client_addr)
             )
+<<<<<<< HEAD
+=======
+
+>>>>>>> 6fc6380b3426a3e66699b182cd85d2de1febac6c
             client_thread.daemon = True
             client_thread.start()
 
@@ -195,6 +255,11 @@ def start_honeypot():
 
 
 if __name__ == "__main__":
+<<<<<<< HEAD
     import logging
     logging.getLogger("paramiko").setLevel(logging.CRITICAL)
     start_honeypot()
+=======
+    logging.getLogger("paramiko").setLevel(logging.CRITICAL)
+    start_honeypot()
+>>>>>>> 6fc6380b3426a3e66699b182cd85d2de1febac6c
