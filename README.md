@@ -249,7 +249,7 @@ pip install flask requests
 
 ---
 
-## 👨‍💻 Author & Contact Information
+## 👨‍💻 Contributors Information
 
 - **DAani Sam**
 
