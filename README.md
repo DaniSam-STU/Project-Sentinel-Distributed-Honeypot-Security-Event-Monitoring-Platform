@@ -75,7 +75,7 @@ Project Sentinel is a full-stack cybersecurity monitoring system. It deploys low
 | **Deployment** | Render (Core API) |
 
 ---
-## 📁 Project Structure
+## 📁 Project Structure (main branch)
 
 ```
 project-sentinel/
