@@ -51,6 +51,16 @@ Project Sentinel is a full-stack cybersecurity monitoring system. It deploys low
 
 ---
 
+## 📖 Detailed Report
+
+<p align="center">
+  <a href="https://github.com/DaniSam-STU/Project-Sentinel-Distributed-Honeypot-Security-Event-Monitoring-Platform/blob/master/Report_File/Sem-4_live_project_report.pdf">
+    <img src="https://img.shields.io/badge/Documented--Report-Open%20Full Report--Pdf-blue?style=for-the-badge&logo=github">
+  </a>
+</p>
+
+---
+
 ## 🛠️ Tech Stack
 
 | Layer | Technology |
