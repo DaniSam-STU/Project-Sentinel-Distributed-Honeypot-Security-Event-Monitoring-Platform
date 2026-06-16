@@ -268,7 +268,7 @@ pip install flask requests
 
 [![GitHub](https://img.shields.io/badge/GitHub-@Hecodes--19-181717?style=for-the-badge&logo=github)](https://github.com/hecodes19)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Aditya--Kaushik-0A6FC2?style=for-the-badge&logo=linkedin)](https://www.linkedin.com/in/aditya-kaushik-326682379)
-[![Email](https://img.shields.io/badge/Email-@gmail.com-D14836?style=for-the-badge&logo=gmail)](mailto:)
+[![Email](https://img.shields.io/badge/Email-adityakaushik473@gmail.com-D14836?style=for-the-badge&logo=gmail)](mailto:adityakaushik473@gmail.com)
 
 ---
 
