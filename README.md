@@ -25,8 +25,6 @@ Project Sentinel is a full-stack cybersecurity monitoring system. It deploys low
 - 📊 **Grafana dashboards** with provisioned alert rules
 - 📧 **Email + Telegram** push notifications
 
-> 🎓 Developed by DAani Sam — Cybersecurity Project (STU)
-
 ---
 
 ## ✨ Features
@@ -46,7 +44,10 @@ Project Sentinel is a full-stack cybersecurity monitoring system. It deploys low
 
 ## 🖼️ Project Preview
 
-> 📌 Sensors connect to the Core API and stream events in real-time. Grafana visualises attack patterns across all honeypots.
+<p align="center">
+  <img src="https://github.com/DaniSam-STU/Project-Sentinel-Distributed-Honeypot-Security-Event-Monitoring-Platform/blob/master/screenshots/5e2f6576-27ac-47c7-a76b-a837125bdd63-4.jpg">
+</p>
+📌 Sensors connect to the Core API and stream events in real-time. Grafana visualises attack patterns across all honeypots.
 
 ---
 
