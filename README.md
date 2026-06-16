@@ -257,6 +257,18 @@ pip install flask requests
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Deepanshu--Semwal-0A6FC2?style=for-the-badge&logo=linkedin)](https://www.linkedin.com/in/deepanshu-s-437566373)
 [![Email](https://img.shields.io/badge/Email-deepanshusemwal99@gmail.com-D14836?style=for-the-badge&logo=gmail)](mailto:deepanshusemwal99@gmail.com)
 
+- **Rays4874**
+
+[![GitHub](https://img.shields.io/badge/GitHub-@Rays4874-181717?style=for-the-badge&logo=github)](https://github.com/Rays4874)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Chayan--Das-0A6FC2?style=for-the-badge&logo=linkedin)](https://www.linkedin.com/in/chayan-das-484156330)
+[![Email](https://img.shields.io/badge/Email-chayandas952@gmail.com-D14836?style=for-the-badge&logo=gmail)](mailto:chayandas952@gmail.com)
+
+- **Hecodes19**
+
+[![GitHub](https://img.shields.io/badge/GitHub-@Hecodes--19-181717?style=for-the-badge&logo=github)](https://github.com/hecodes19)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Aditya--Kaushik-0A6FC2?style=for-the-badge&logo=linkedin)](https://www.linkedin.com/in/aditya-kaushik-326682379)
+[![Email](https://img.shields.io/badge/Email-@gmail.com-D14836?style=for-the-badge&logo=gmail)](mailto:)
+
 ---
 
 ## 📜 License
